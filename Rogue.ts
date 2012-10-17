@@ -7,7 +7,8 @@ module rogue {
         selection: map.IMapSelection;
         input: controls.Input;
         movementHelper: controls.MovementHelper;
-
+        populateMapHelper:map.MapPopulater;
+        
         constructor (display: HTMLCanvasElement) {
             this.display = display;
             this.input = new controls.Input();
@@ -60,10 +61,13 @@ module rogue {
             this.map = new map.TileMap();
             this.map.setTiles(mapTiles);
 
-            this.movementHelper = new controls.MovementHelper(this.map);
-            this.movementHelper.startPosition(new geom.Point(3, 1)); //TODO this need to be filled in by the populateMapHelper
+            this.populateMapHelper = new map.MapPopulater(this.map);
+            this.populateMapHelper.populateMap(["x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x"]);
 
-            this.selection = new map.MapSelection(this.map, 40, 40);
+            this.movementHelper = new controls.MovementHelper(this.map);
+            this.movementHelper.startPosition(this.populateMapHelper.getRandomEmptyPoint()); //TODO this need to be filled in by the populateMapHelper
+
+            this.selection = new map.FogOfWarMapSelection(this.map, 40, 24, 5);
             this.selection.setCenter(this.movementHelper.playerPosition);
 
             this.renderer = new renderer.CanvasMapRenderer(this.display, new geom.Rectangle(0, 0, 20, 20));
@@ -114,12 +118,12 @@ module rogue {
 
         }
 
-        move(state:String): void {
+        move(state:string): void {
 
             var tmpPoint: geom.Point = this.movementHelper.previewMove(state);
 
             if (tmpPoint != null) {
-                var tile: String = this.map.getTileType(tmpPoint);
+                var tile: string = this.map.getTileType(tmpPoint);
                 switch (tile) {
                     case " ": case "x":
                         this.movementHelper.move(tmpPoint.x, tmpPoint.y);
@@ -384,6 +388,187 @@ module rogue.map {
         }
     }
 
+    export class FogOfWarMapSelection extends MapSelection
+    {
+        exploredTilesHashMap:string[] = [];
+        saveExploredTiles:bool = true;
+        _revealAll:bool;
+        visiblePoints:any[] = [];
+        viewDistance:number;
+        _tourchMode:bool;
+        _fullLineOfSight:bool;
+        exploredTiles:number[] = [];
+
+        constructor(map:IMap, width:number, height:number, viewDistance:number)
+        {
+            super(map, width, height);
+            this.viewDistance = viewDistance;
+        }
+
+        getSurroundingTiles(center:geom.Point, horizontalRange:number, verticalRange:number):any[]
+        {
+
+            var tiles:any[] = super.getSurroundingTiles(center, horizontalRange, verticalRange);
+
+            // Need to adjust the center point coming in
+            var newPoint:geom.Point = center.clone();
+            newPoint.x -= this.getOffsetX();
+            newPoint.y -= this.getOffsetY();
+
+            this.calculateLight(tiles, new geom.Point(newPoint.y, newPoint.x));
+
+            this.applyLight(tiles, this.visiblePoints);
+
+            if (!this.saveExploredTiles)
+                this.clear();
+
+            return this.tiles;
+        }
+
+        applyLight(tiles:any[], visiblePoints:any[]):void
+        {
+            var width:number = tiles[0].length;
+            var height:number = tiles.length;
+
+            var rows:number;
+            var columns:number;
+
+            for (rows = 0; rows < height; rows++)
+            {
+                for (columns = 0; columns < width; columns ++)
+                {
+                    var uID:number = this.getTileID(columns, rows);
+                    if (this.visiblePoints.indexOf(uID) == -1)
+                    {
+                        if (this.exploredTilesHashMap[uID] || this._revealAll)
+                            tiles[rows][columns] = tiles[rows][columns] == "?" ? "#" : "?";
+                        else
+                            tiles[rows][columns] = "*";
+                    }
+                }
+
+            }
+
+            visiblePoints.length = 0;
+        }
+
+        calculateLight(tiles:any[], center:geom.Point):void
+        {
+
+            var totalRows:number = tiles.length;
+            var totalColumns:number = tiles[0].length;
+            var i:number;
+
+            // Get top
+            for (i = 0; i < totalColumns; i++)
+            {
+                this.rayTrace(center.x, center.y, 0, i, tiles);
+                this.rayTrace(center.x, center.y, totalRows - 1, i, tiles);
+            }
+
+            for (i = 0; i < totalRows; i++)
+            {
+                this.rayTrace(center.x, center.y, i, 0, tiles);
+                this.rayTrace(center.x, center.y, i, totalColumns - 1, tiles);
+            }
+        }
+
+
+        rayTrace(x0:number, y0:number, x1:number, y1:number, tiles:any[]):void
+        {
+
+            var dx:number = Math.abs(x1 - x0);
+            var dy:number = Math.abs(y1 - y0);
+            var x:number = x0;
+            var y:number = y0;
+            var n:number = this.viewDistance;//(!_fullLineOfSight) ? viewDistance : 1 + dx + dy;
+            var x_inc:number = (x1 > x0) ? 1 : -1;
+            var y_inc:number = (y1 > y0) ? 1 : -1;
+            var error:number = dx - dy;
+            dx *= 2;
+            dy *= 2;
+
+            for (; n > 0; --n)
+            {
+                var isWall:Boolean = this.visit(x, y, tiles, n);
+
+                if (isWall)
+                    n = 0;
+
+                if (error > 0)
+                {
+                    x += x_inc;
+                    error -= dy;
+                }
+                else
+                {
+                    y += y_inc;
+                    error += dx;
+                }
+            }
+
+        }
+
+        visit(x:number, y:number, tiles:any[], distance:number):Boolean
+        {
+            //TODO not sure why I would ever get a value less then 0 but I do
+            if (x < 0) x = 0;
+            if (x > tiles.length - 1) x = tiles.length - 1;
+            if (y < 0) y = 0;
+            if (y > tiles[0].length - 1) y = tiles[0].length - 1;
+
+            var tile:string = tiles[x][y];
+
+            var uID:number = this.getTileID(y, x);
+
+            if (this.visiblePoints.indexOf(uID) == -1)
+                this.visiblePoints.push(uID);
+
+            if (!this._tourchMode || !this._fullLineOfSight)
+            {
+                if (!this.exploredTilesHashMap[uID] && tile != "#")
+                {
+                    this.exploredTilesHashMap[uID] = " ";
+                    this.exploredTiles.push(uID);
+                }
+            }
+            //TODO this should use the type types to see if it is see threw not just a wall to add shadow around monsters
+            return tile == "#" ? true : false;
+        }
+
+        clear():void
+        {
+            this.exploredTilesHashMap.length = 0;
+            this.exploredTiles.length = 0;
+        }
+
+        revealAll(value:bool):void
+        {
+            this._revealAll = value;
+
+        }
+
+        tourchMode(value:bool):void
+        {
+            this._tourchMode = value;
+        }
+
+        fullLineOfSight(value:bool):void
+        {
+            this._fullLineOfSight = value;
+        }
+
+        getVisitedTiles():number
+        {
+            return this.exploredTiles.length;
+        }
+
+        getExploredTiles():any[]
+        {
+            return this.exploredTiles;
+        }
+    }
+
     export interface IMap extends ISelectTiles {
 
         getTileType(position: geom.Point): string;
@@ -392,7 +577,7 @@ module rogue.map {
 
         getHeight(): number;
 
-        swapTile(point: geom.Point, value: String): string;
+        swapTile(point: geom.Point, value: string): string;
 
         getOpenTiles(): any[];
 
@@ -448,7 +633,7 @@ module rogue.map {
             var column: number;
             var totalRows: number = this.getHeight();
             var totalColumns: number = this.getWidth();
-            var tile: String;
+            var tile: string;
 
             for (row = 0; row < this._height; row++) {
                 for (column = 0; column < this._width; column++) {
@@ -483,7 +668,7 @@ module rogue.map {
             return this._height;
         }
 
-        swapTile(point: geom.Point, value: String): string {
+        swapTile(point: geom.Point, value: string): string {
             var oldValue: string = this.tiles[point.y][point.x];
             this.tiles[point.y][point.x] = value;
             return oldValue;
@@ -519,6 +704,52 @@ module rogue.map {
             this.indexOpenTiles();
         }
     }
+
+    export class MapPopulater
+    {
+        map:IMap;
+        openSpaces:any[] = [];
+
+        getOpenSpaces():number
+        {
+            return this.openSpaces.length;
+        }
+
+        constructor(map:IMap)
+        {
+            this.map = map;
+            this.openSpaces = map.getOpenTiles();
+        }
+
+        populateMap(items:string[]):void
+        {
+            var key:string;
+            var i: number;
+            var total: number = items.length;
+            for (i = 0; i < total; i++)
+            {
+                this.randomlyPlaceTile(items[i]);
+            }
+        }
+
+        randomlyPlaceTile(key:string):void
+        {
+            var point:geom.Point = this.getRandomEmptyPoint();
+            if (point)
+                this.placeTile(point, key);
+        }
+
+        placeTile(point:geom.Point, key:string):void
+        {
+            this.map.swapTile(point, key);
+        }
+
+        getRandomEmptyPoint():geom.Point
+        {
+            return this.openSpaces[Math.floor((Math.random() * this.openSpaces.length))];
+        }
+
+    }
 }
 
 module rogue.renderer {
@@ -536,7 +767,7 @@ module rogue.renderer {
             var column: number;
             var total: number = tiles.length;
             var rowWidth: number = tiles[0].length;
-            var currentTile: String;
+            var currentTile: string;
             var tileID: number = 0;
 
             this.clearMap();
@@ -550,7 +781,7 @@ module rogue.renderer {
 
         }
 
-        renderTile(j: number, i: number, currentTile: String, tileID: number): void {
+        renderTile(j: number, i: number, currentTile: string, tileID: number): void {
 
         }
 
@@ -558,7 +789,7 @@ module rogue.renderer {
         }
 
 
-        renderPlayer(j: number, i: number, tileType: String): void {
+        renderPlayer(j: number, i: number, tileType: string): void {
             this.renderTile(j, i, tileType, 0);
         }
 
@@ -601,19 +832,19 @@ module rogue.renderer {
             this.canvas.width = this.canvas.width;
         }
 
-        tileColor(value: String): string {
+        tileColor(value: string): string {
             switch (value) {
                 case " ":
-                    return "white";
+                    return "#ffffff";
                     break;
                 case "@":
-                    return "red";
+                    return "#ff0000";
                 case "x":
-                    return "blue";
+                    return "#00ff00";
                 case "?":
-                    return "0x666666";
+                    return "#666666";
                 default:
-                    return "grey";
+                    return "#333333";
             }
         }
     }
@@ -629,7 +860,7 @@ module rogue.controls {
 
     export class MovementHelper {
         playerPosition: geom.Point;
-        oldTileValue: String;
+        oldTileValue: string;
         map: map.IMap;
 
 
@@ -637,7 +868,7 @@ module rogue.controls {
             this.map = map;
         }
 
-        move(x: number, y: number, playerToken: String = "@"): void {
+        move(x: number, y: number, playerToken: string = "@"): void {
             console.log("Move", x+" ", y+" ", this.playerPosition.x+" ", this.playerPosition.y);
             this.playerPosition.x = x;
             this.playerPosition.y = y;
@@ -747,4 +978,6 @@ module rogue.controls {
 window.onload = () => {
     var canvas = <HTMLCanvasElement>document.getElementById('display');
     var rogueTS = new rogue.Game(canvas);
+
+
 };
