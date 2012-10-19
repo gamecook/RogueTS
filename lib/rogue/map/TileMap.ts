@@ -33,10 +33,9 @@ module rogue.map {
     
     export class TileMap implements IMap {
         tiles: any[] = [];
-        dirs: Array;
         mapsize: number;
-        paths: Array;
-        _rooms: Array;
+        paths: any[];
+        _rooms: any[];
         _width: number;
         _height: number;
         openTiles: any[] = [];

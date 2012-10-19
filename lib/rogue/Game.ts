@@ -5,6 +5,7 @@
 /// <reference path="./controls/MovementHelper.ts" />
 /// <reference path="./map/MapPopulator.ts" />
 /// <reference path="./map/FogOfWarMapSelection.ts" />
+/// <reference path="./map/RandomMap.ts" />
 
 module rogue {
     export class Game {
@@ -21,7 +22,7 @@ module rogue {
             this.display = display;
             this.input = new controls.Input();
 
-            var mapTiles =
+            /*var mapTiles =
                         [
                             ["#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#"],
                             ["#", "#", "#", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", "#"],
@@ -64,10 +65,10 @@ module rogue {
                             ["#", "#", "#", " ", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", " ", "#"],
                             ["#", "#", "#", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", "#"],
                             ["#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#", "#"]
-                        ];
+                        ];*/
 
-            this.map = new map.TileMap();
-            this.map.setTiles(mapTiles);
+            this.map = new map.RandomMap(11);
+            //this.map.setTiles(mapTiles);
 
             this.populateMapHelper = new map.MapPopulater(this.map);
             this.populateMapHelper.populateMap(["x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x", "x"]);
@@ -80,6 +81,9 @@ module rogue {
 
             this.renderer = new renderer.CanvasMapRenderer(this.display, new geom.Rectangle(0, 0, 20, 20));
 
+            //var rMap = new map.RandomMap(30);
+            //rMap.generateMap(40);
+            console.log("Random Map", this.map.toString());
             // Start game loop
             this.onEnterFrame();
         }

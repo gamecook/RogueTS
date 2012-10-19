@@ -23,15 +23,90 @@
 *
 */
 
-/// <reference path="../geom/Point.ts" />
-/// <reference path="./TileMap.ts" />
-/// <reference path="./ISelectTiles.ts" />
-/// <reference path="./IMapSelection.ts" />
-
 module rogue.map {
  
 
     export class Room {
+        x1 = 0;
+        y1 = 0;
+        x2 = 0;
+        y2 = 0;
+        connectedRooms;
+        constructor (x1, y1, x2, y2)
+        {
+
+
+            if (x1 > x2)
+            {
+                var x = x1;
+                x1 = x2;
+                x2 = x;
+            }
+            if (y1 > y2)
+            {
+                var y = y1;
+                y1 = y2;
+                y2 = y;
+            }
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+
+
+            /*this.__defineGetter__('width',
+                function ()
+                {
+                    return this.x2 - this.x1;
+                });
+            this.__defineGetter__('height',
+                function ()
+                {
+                    return this.y2 - this.y1;
+                });
+            this.__defineGetter__('top', function ()
+            {
+                return this.y1;
+            });
+            this.__defineGetter__('left', function ()
+            {
+                return this.x1;
+            });*/
+
+
+            this.connectedRooms = new Object();
+
+
+            return this;
+        }
+
+        toString ()
+        {
+            return '[room ' + this.x1 + ', ' + this.y1 + ', '
+                + this.x2 + ', ' + this.y2 + ']';
+        }
+        intersects (room)
+        {
+            return this.x1 <= room.x2 && this.x2 >= room.x1
+                && this.y1 <= room.y2 && this.y2 >= room.y1;
+        }
+        contains (x, y)
+        {
+            return x >= this.x1 && x <= this.x2 && y >= this.y1 && y <= this.y2;
+        }
+        connected (otherroom, seenlist)
+        {
+            if (this.connectedRooms[otherroom]) return true;
+            var that = this;
+            if (!seenlist) seenlist = {that:true};
+            if (seenlist[otherroom]) return false;
+            seenlist[otherroom] = true;
+            for (var i in otherroom.connectedRooms)
+            {
+                if (this.connected(otherroom.connectedRooms[i], seenlist)) return true;
+            }
+            return false;
+        }
 
     }
 }
