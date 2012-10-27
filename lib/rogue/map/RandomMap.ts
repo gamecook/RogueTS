@@ -1,5 +1,4 @@
 /**
-* The MIT License
 *
 * Based on iPhone RPG, (c) 2007 Chris Knight, Creative Commons license
 *
@@ -114,5 +113,8 @@ module rogue.map {
             }
         }
 
+
+
     }
+
 }
